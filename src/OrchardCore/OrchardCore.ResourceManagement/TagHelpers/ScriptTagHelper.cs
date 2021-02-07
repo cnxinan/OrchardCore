@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 
 namespace OrchardCore.ResourceManagement.TagHelpers
 {
-
     [HtmlTargetElement("script", Attributes = NameAttributeName)]
     [HtmlTargetElement("script", Attributes = SrcAttributeName)]
     [HtmlTargetElement("script", Attributes = AtAttributeName)]
@@ -14,12 +13,16 @@ namespace OrchardCore.ResourceManagement.TagHelpers
         private const string NameAttributeName = "asp-name";
         private const string SrcAttributeName = "asp-src";
         private const string AtAttributeName = "at";
+        private const string AppendVersionAttributeName = "asp-append-version";
 
         [HtmlAttributeName(NameAttributeName)]
         public string Name { get; set; }
 
         [HtmlAttributeName(SrcAttributeName)]
         public string Src { get; set; }
+
+        [HtmlAttributeName(AppendVersionAttributeName)]
+        public bool? AppendVersion { get; set; }
 
         public string CdnSrc { get; set; }
         public string DebugSrc { get; set; }
@@ -53,7 +56,7 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                 if (String.IsNullOrEmpty(DependsOn))
                 {
                     // Include custom script url
-                    setting = _resourceManager.Include("script", Src, DebugSrc);
+                    setting = _resourceManager.RegisterUrl("script", Src, DebugSrc);
                 }
                 else
                 {
@@ -85,6 +88,11 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                         definition.SetDependencies(DependsOn.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
                     }
 
+                    if (AppendVersion.HasValue)
+                    {
+                        definition.ShouldAppendVersion(AppendVersion);
+                    }
+
                     if (!String.IsNullOrEmpty(Version))
                     {
                         definition.SetVersion(Version);
@@ -107,10 +115,15 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                 {
                     setting.UseDebugMode(Debug.Value);
                 }
-                
+
                 if (!String.IsNullOrEmpty(Culture))
                 {
                     setting.UseCulture(Culture);
+                }
+
+                if (AppendVersion.HasValue)
+                {
+                    setting.ShouldAppendVersion(AppendVersion);
                 }
 
                 foreach (var attribute in output.Attributes)
@@ -118,7 +131,7 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     setting.SetAttribute(attribute.Name, attribute.Value.ToString());
                 }
 
-                if (At == ResourceLocation.Unspecified)
+                if (At == ResourceLocation.Unspecified || At == ResourceLocation.Inline)
                 {
                     _resourceManager.RenderLocalScript(setting, output.Content);
                 }
@@ -154,12 +167,40 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     setting.UseCulture(Culture);
                 }
 
+                if (AppendVersion.HasValue)
+                {
+                    setting.ShouldAppendVersion(AppendVersion);
+                }
+
                 if (!String.IsNullOrEmpty(Version))
                 {
                     setting.UseVersion(Version);
                 }
 
-                if (At == ResourceLocation.Unspecified)
+                // This allows additions to the pre registered scripts dependencies.
+                if (!String.IsNullOrEmpty(DependsOn))
+                {
+                    setting.SetDependencies(DependsOn.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
+                }
+
+                // Allow Inline to work with both named scripts, and named inline scripts.
+                if (At != ResourceLocation.Unspecified)
+                {
+                    // Named inline declaration.
+                    var childContent = await output.GetChildContentAsync();
+                    if (!childContent.IsEmptyOrWhiteSpace)
+                    {
+                        // Inline content definition
+                        _resourceManager.InlineManifest.DefineScript(Name)
+                            .SetInnerContent(childContent.GetContent());
+                    }
+
+                    if (At == ResourceLocation.Inline)
+                    {
+                        _resourceManager.RenderLocalScript(setting, output.Content);
+                    }
+                }
+                else
                 {
                     _resourceManager.RenderLocalScript(setting, output.Content);
                 }
@@ -191,6 +232,11 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     definition.SetDependencies(DependsOn.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
                 }
 
+                if (AppendVersion.HasValue)
+                {
+                    definition.ShouldAppendVersion(AppendVersion);
+                }
+
                 if (!String.IsNullOrEmpty(Version))
                 {
                     definition.SetVersion(Version);
@@ -217,7 +263,7 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     {
                         setting.UseDebugMode(Debug.Value);
                     }
-                    
+
                     if (!String.IsNullOrEmpty(Culture))
                     {
                         setting.UseCulture(Culture);
@@ -226,6 +272,11 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     foreach (var attribute in output.Attributes)
                     {
                         setting.SetAttribute(attribute.Name, attribute.Value.ToString());
+                    }
+
+                    if (At == ResourceLocation.Inline)
+                    {
+                        _resourceManager.RenderLocalScript(setting, output.Content);
                     }
                 }
             }
@@ -244,17 +295,14 @@ namespace OrchardCore.ResourceManagement.TagHelpers
                     builder.Attributes.Add(attribute.Name, attribute.Value.ToString());
                 }
 
-                // If no type was specified, define a default one
-                if (!builder.Attributes.ContainsKey("type"))
-                {
-                    builder.Attributes.Add("type", "text/javascript");
-                }
-
                 if (At == ResourceLocation.Head)
                 {
                     _resourceManager.RegisterHeadScript(builder);
                 }
-                else
+                else if (At == ResourceLocation.Inline)
+                {
+                    output.Content.SetHtmlContent(builder);
+                } else 
                 {
                     _resourceManager.RegisterFootScript(builder);
                 }

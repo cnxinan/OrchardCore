@@ -1,14 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>$(AspNetCoreTargetFramework)</TargetFramework>
+    <!-- NuGet properties-->
+    <Title>OrchardCore Logging NLog</Title>
+    <Description>$(OCFrameworkDescription)
+    
+    Provides NLog logging for application.</Description>
+    <PackageTags>$(PackageTags) OrchardCoreFramework Logging</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NLog.Web.AspNetCore" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
 
-    <!-- Used to fix conflicting referenced versions -->
-    <PackageReference Include="System.Security.AccessControl" Version="4.5.0" />
+  <ItemGroup>
+    <PackageReference Include="NLog.Web.AspNetCore" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,8 +11,6 @@ using YesSql.Indexes;
 
 namespace OrchardCore.Taxonomies.Indexing
 {
-    // Remark: 
-
     public class TaxonomyIndex : MapIndex
     {
         public string TaxonomyContentItemId { get; set; }
@@ -21,6 +19,8 @@ namespace OrchardCore.Taxonomies.Indexing
         public string ContentPart { get; set; }
         public string ContentField { get; set; }
         public string TermContentItemId { get; set; }
+        public bool Published { get; set; }
+        public bool Latest { get; set; }
     }
 
     public class TaxonomyIndexProvider : IndexProvider<ContentItem>, IScopedIndexProvider
@@ -39,7 +39,7 @@ namespace OrchardCore.Taxonomies.Indexing
             context.For<TaxonomyIndex>()
                 .Map(contentItem =>
                 {
-                    if (!contentItem.IsPublished())
+                    if (!contentItem.Published && !contentItem.Latest)
                     {
                         return null;
                     }
@@ -54,14 +54,22 @@ namespace OrchardCore.Taxonomies.Indexing
                     _contentDefinitionManager = _contentDefinitionManager ?? _serviceProvider.GetRequiredService<IContentDefinitionManager>();
 
                     // Search for Taxonomy fields
-                    var fieldDefinitions = _contentDefinitionManager
-                        .GetTypeDefinition(contentItem.ContentType)
+                    var contentTypeDefinition = _contentDefinitionManager.GetTypeDefinition(contentItem.ContentType);
+
+                    // This can occur when content items become orphaned, particularly layer widgets when a layer is removed, before its widgets have been unpublished.
+                    if (contentTypeDefinition == null)
+                    {
+                        _ignoredTypes.Add(contentItem.ContentType);
+                        return null;
+                    }
+                    
+                    var fieldDefinitions = contentTypeDefinition
                         .Parts.SelectMany(x => x.PartDefinition.Fields.Where(f => f.FieldDefinition.Name == nameof(TaxonomyField)))
                         .ToArray();
 
                     // This type doesn't have any TaxonomyField, ignore it
                     if (fieldDefinitions.Length == 0)
-                    {                        
+                    {
                         _ignoredTypes.Add(contentItem.ContentType);
                         return null;
                     }
@@ -97,6 +105,8 @@ namespace OrchardCore.Taxonomies.Indexing
                                 ContentPart = fieldDefinition.PartDefinition.Name,
                                 ContentField = fieldDefinition.Name,
                                 TermContentItemId = termContentItemId,
+                                Published = contentItem.Published,
+                                Latest = contentItem.Latest
                             });
                         }
                     }

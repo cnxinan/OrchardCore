@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc.Razor;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using OrchardCore.DisplayManagement.Extensions;
-using OrchardCore.DisplayManagement.Theming;
+using OrchardCore.DisplayManagement.Razor;
 using OrchardCore.Environment.Extensions;
 using OrchardCore.Mvc.LocationExpander;
 
@@ -12,10 +12,12 @@ namespace OrchardCore.DisplayManagement.LocationExpander
 {
     public class ThemeViewLocationExpanderProvider : IViewLocationExpanderProvider
     {
+        private readonly IHostEnvironment _hostingEnvironment;
         private readonly IExtensionManager _extensionManager;
 
-        public ThemeViewLocationExpanderProvider(IExtensionManager extensionManager)
+        public ThemeViewLocationExpanderProvider(IHostEnvironment hostingEnvironment, IExtensionManager extensionManager)
         {
+            _hostingEnvironment = hostingEnvironment;
             _extensionManager = extensionManager;
         }
 
@@ -24,20 +26,11 @@ namespace OrchardCore.DisplayManagement.LocationExpander
         /// <inheritdoc />
         public void PopulateValues(ViewLocationExpanderContext context)
         {
-            var themeManager = context
-                .ActionContext
-                .HttpContext
-                .RequestServices
-                .GetService<IThemeManager>();
+            var currentTheme = context.ActionContext.HttpContext.Features.Get<RazorViewFeature>()?.Theme;
 
-            if (themeManager != null)
+            if (currentTheme != null)
             {
-                var currentTheme = themeManager.GetThemeAsync().GetAwaiter().GetResult();
-
-                if (currentTheme != null)
-                {
-                    context.Values["Theme"] = currentTheme.Id;
-                }
+                context.Values["Theme"] = currentTheme.Id;
             }
         }
 
@@ -45,7 +38,7 @@ namespace OrchardCore.DisplayManagement.LocationExpander
         public virtual IEnumerable<string> ExpandViewLocations(ViewLocationExpanderContext context,
                                                                IEnumerable<string> viewLocations)
         {
-            if (context.AreaName == null || !context.Values.ContainsKey("Theme"))
+            if (!context.Values.ContainsKey("Theme"))
             {
                 return viewLocations;
             }
@@ -55,38 +48,51 @@ namespace OrchardCore.DisplayManagement.LocationExpander
             var currentThemeAndBaseThemesOrdered = _extensionManager
                 .GetFeatures(new[] { currentThemeId })
                 .Where(x => x.Extension.IsTheme())
-                .Reverse();
+                .Reverse()
+                .ToList();
+
+            // let the application acting as a super theme also for mvc views discovering.
+            var applicationTheme = _extensionManager
+                .GetFeatures()
+                .FirstOrDefault(x => x.Id == _hostingEnvironment.ApplicationName);
+
+            if (applicationTheme != null)
+            {
+                currentThemeAndBaseThemesOrdered.Insert(0, applicationTheme);
+            }
 
             var result = new List<string>();
 
-            if (!String.IsNullOrEmpty(context.AreaName))
+            foreach (var theme in currentThemeAndBaseThemesOrdered)
             {
-                foreach (var theme in currentThemeAndBaseThemesOrdered)
+                if (context.AreaName != theme.Id)
                 {
-                    if (context.AreaName != theme.Id)
-                    {
-                        var themePagesPath = '/' + theme.Extension.SubPath + "/Pages";
-                        var themeViewsPath = '/' + theme.Extension.SubPath + "/Views";
-                        var themePagesAreaPath = themePagesPath + '/' + context.AreaName;
-                        var themeViewsAreaPath = themeViewsPath + '/' + context.AreaName;
+                    var themePagesPath = '/' + theme.Extension.SubPath + "/Pages";
+                    var themeViewsPath = '/' + theme.Extension.SubPath + "/Views";
 
+                    if (context.AreaName != null)
+                    {
                         if (context.PageName != null)
                         {
-                            result.Add(themePagesAreaPath + "/{0}" + RazorViewEngine.ViewExtension);
+                            result.Add(themePagesPath + "/{2}/{0}" + RazorViewEngine.ViewExtension);
                         }
                         else
                         {
-                            result.Add(themeViewsAreaPath + "/{1}/{0}" + RazorViewEngine.ViewExtension);
+                            result.Add(themeViewsPath + "/{2}/{1}/{0}" + RazorViewEngine.ViewExtension);
                         }
-
-                        if (context.PageName != null)
-                        {
-                            result.Add(themePagesPath + "/Shared/{0}" + RazorViewEngine.ViewExtension);
-                        }
-
-                        result.Add(themeViewsAreaPath + "/Shared/{0}" + RazorViewEngine.ViewExtension);
-                        result.Add(themeViewsPath + "/Shared/{0}" + RazorViewEngine.ViewExtension);
                     }
+
+                    if (context.PageName != null)
+                    {
+                        result.Add(themePagesPath + "/Shared/{0}" + RazorViewEngine.ViewExtension);
+                    }
+
+                    if (context.AreaName != null)
+                    {
+                        result.Add(themeViewsPath + "/{2}/Shared/{0}" + RazorViewEngine.ViewExtension);
+                    }
+
+                    result.Add(themeViewsPath + "/Shared/{0}" + RazorViewEngine.ViewExtension);
                 }
             }
 

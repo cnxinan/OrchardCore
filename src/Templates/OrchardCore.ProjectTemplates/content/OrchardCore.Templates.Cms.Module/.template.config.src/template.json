@@ -2,16 +2,34 @@
   "$schema": "http://json.schemastore.org/template",
   "author": "Orchard Project",
   "classifications": [ "Web", "Orchard Core", "CMS" ],
-  "name": "Orchard Core Module",
+  "name": "Orchard Core Cms Module",
   "identity": "OrchardCore.Templates.Cms.Module",
   "shortName": "ocmodulecms",
   "sourceName": "OrchardCore.Templates.Cms.Module",
+  "defaultName": "OrchardCore.Cms.Module",
   "preferNameDirectory": true,
   "symbols": {
+    "Framework": {
+      "type": "parameter",
+      "description": "The target framework for the project.",
+      "datatype": "choice",
+      "choices": [
+        {
+          "choice": "netcoreapp3.1",
+          "description": "Target netcoreapp3.1"
+        },
+        {
+          "choice": "net5.0",
+          "description": "Target net5.0"
+        }
+      ],
+      "replaces": "netcoreapp3.1",
+      "defaultValue": "netcoreapp3.1"
+    },
     "AddPart": {
       "type": "parameter",
       "dataType": "bool",
-      "description": "Add dependency injection for part in Startup.cs",
+      "description": "Add dependency injection for part in Startup.cs. If PartName is not provided, default name will be used",
       "defaultValue": "false"
     },
     "PartName": {
@@ -20,7 +38,7 @@
       "description": "Add all files required for a part",
       "replaces": "MyTest",
       "fileRename": "MyTest",
-      "defaultValue": ""
+      "defaultValue": "MyTest"
     },
     "OrchardVersion": {
       "type": "parameter",
@@ -34,7 +52,7 @@
     {
       "modifiers": [
         {
-          "condition": "(PartName=='')",
+          "condition": "(PartName=='' || AddPart == false)",
           "exclude": [
             "Migrations.cs",
             "Drivers/MyTestPartDisplayDriver.cs",

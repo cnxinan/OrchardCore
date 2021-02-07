@@ -1,7 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\..\OrchardCore.Build\OrchardCore.Commons.props" />
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.SourceLink.GitHub" />
+  </ItemGroup>
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFramework>$(AspNetCoreTargetFramework)</TargetFramework>
     <IncludeBuildOutput>False</IncludeBuildOutput>
     <IncludeSource>False</IncludeSource>
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
@@ -9,11 +12,13 @@
     <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
     <PackageType>Template</PackageType>
     <NoWarn>CS8021,CS2008</NoWarn>
+    <!-- NuGet properties-->
+    <Title>OrchardCore Code Generation Templates</Title>
+    <Description>$(OCFrameworkDescription)
+    
+    OrchardCore Code Templates for dotnet new template configurations for creating new websites, themes and modules from the command shell.</Description>
+    <PackageTags>$(PackageTags) OrchardCoreFramework</PackageTags>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Remove="NETStandard.Library" />
-  </ItemGroup>
 
   <ItemGroup>
     <None Include="content\**" Exclude="**\.template.config.src\**" Pack="true">
